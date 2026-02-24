@@ -1,7 +1,9 @@
 package com.astraval.iotrootbackend.modules.auth;
 
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -19,12 +21,15 @@ import com.astraval.iotrootbackend.modules.auth.dto.ForgotPasswordRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.LoginRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.RegisterRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.RegisterResponse;
+import com.astraval.iotrootbackend.modules.auth.dto.ResendOtpRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.ResetPasswordRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.TokenRefreshRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.VerifyOtpRequest;
 import com.astraval.iotrootbackend.modules.auth.otp.OtpPurpose;
 import com.astraval.iotrootbackend.modules.auth.otp.UserOtp;
 import com.astraval.iotrootbackend.modules.auth.otp.UserOtpRepository;
+import com.astraval.iotrootbackend.modules.auth.token.RevokedRefreshToken;
+import com.astraval.iotrootbackend.modules.auth.token.RevokedRefreshTokenRepository;
 import com.astraval.iotrootbackend.modules.emailtemplate.EmailTemplateService;
 import com.astraval.iotrootbackend.modules.user.User;
 import com.astraval.iotrootbackend.modules.user.UserRepository;
@@ -40,6 +45,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final UserOtpRepository userOtpRepository;
+    private final RevokedRefreshTokenRepository revokedRefreshTokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailTemplateService emailTemplateService;
@@ -50,11 +56,13 @@ public class AuthService {
     public AuthService(
             UserRepository userRepository,
             UserOtpRepository userOtpRepository,
+            RevokedRefreshTokenRepository revokedRefreshTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil,
             EmailTemplateService emailTemplateService) {
         this.userRepository = userRepository;
         this.userOtpRepository = userOtpRepository;
+        this.revokedRefreshTokenRepository = revokedRefreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.emailTemplateService = emailTemplateService;
@@ -113,6 +121,24 @@ public class AuthService {
         return buildAuthTokens(user);
     }
 
+    @Transactional
+    public RegisterResponse resendOtp(ResendOtpRequest request) {
+        String email = normalizeEmail(request.email());
+        User user = userRepository.findByEmailIgnoreCaseAndIsActiveTrue(email)
+                .orElseThrow(() -> new BadRequestException("User not found"));
+
+        if (user.isVerified()) {
+            throw new BadRequestException("User is already verified");
+        }
+
+        OtpDispatchResult otpDispatch = issueOtpForUser(
+                user,
+                OtpPurpose.REGISTRATION_VERIFICATION,
+                OTP_VERIFICATION_TEMPLATE);
+
+        return new RegisterResponse(user.getUserId(), user.getEmail(), otpDispatch.expiresAt(), otpDispatch.emailSent());
+    }
+
     @Transactional(readOnly = true)
     public AuthTokenResponse refreshToken(TokenRefreshRequest request) {
         String refreshToken = request.refreshToken().trim();
@@ -124,6 +150,13 @@ public class AuthService {
         String tokenType = claims.get("type", String.class);
         if (!"refresh".equals(tokenType)) {
             throw new UnauthorizedException("Invalid refresh token type");
+        }
+        String tokenId = claims.getId();
+        if (tokenId == null || tokenId.isBlank()) {
+            throw new UnauthorizedException("Invalid refresh token");
+        }
+        if (revokedRefreshTokenRepository.existsByTokenId(tokenId)) {
+            throw new UnauthorizedException("Refresh token is revoked");
         }
 
         Long userId;
@@ -141,6 +174,42 @@ public class AuthService {
         }
 
         return buildAuthTokens(user);
+    }
+
+    @Transactional
+    public void logout(TokenRefreshRequest request) {
+        String refreshToken = request.refreshToken().trim();
+        if (!jwtUtil.isTokenValid(refreshToken)) {
+            return;
+        }
+
+        Claims claims = jwtUtil.parseClaims(refreshToken);
+        String tokenType = claims.get("type", String.class);
+        if (!"refresh".equals(tokenType)) {
+            return;
+        }
+
+        String tokenId = claims.getId();
+        if (tokenId == null || tokenId.isBlank() || revokedRefreshTokenRepository.existsByTokenId(tokenId)) {
+            return;
+        }
+
+        Long userId;
+        try {
+            userId = Long.parseLong(claims.getSubject());
+        } catch (NumberFormatException ex) {
+            return;
+        }
+
+        LocalDateTime expiresAt = Instant.ofEpochMilli(claims.getExpiration().getTime())
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
+
+        RevokedRefreshToken revokedToken = new RevokedRefreshToken();
+        revokedToken.setTokenId(tokenId);
+        revokedToken.setUserId(userId);
+        revokedToken.setExpiresAt(expiresAt);
+        revokedRefreshTokenRepository.save(revokedToken);
     }
 
     @Transactional

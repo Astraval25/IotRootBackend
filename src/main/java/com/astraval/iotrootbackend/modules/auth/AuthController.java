@@ -13,6 +13,7 @@ import com.astraval.iotrootbackend.modules.auth.dto.ForgotPasswordRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.LoginRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.RegisterRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.RegisterResponse;
+import com.astraval.iotrootbackend.modules.auth.dto.ResendOtpRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.ResetPasswordRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.TokenRefreshRequest;
 import com.astraval.iotrootbackend.modules.auth.dto.VerifyOtpRequest;
@@ -47,10 +48,22 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponseFactory.ok(response, "Login successful"));
     }
 
+    @PostMapping("/resend-otp")
+    public ResponseEntity<ApiResponse<RegisterResponse>> resendOtp(@Valid @RequestBody ResendOtpRequest request) {
+        RegisterResponse response = authService.resendOtp(request);
+        return ResponseEntity.ok(ApiResponseFactory.ok(response, "OTP resent successfully"));
+    }
+
     @PostMapping("/refresh-token")
     public ResponseEntity<ApiResponse<AuthTokenResponse>> refreshToken(@Valid @RequestBody TokenRefreshRequest request) {
         AuthTokenResponse response = authService.refreshToken(request);
         return ResponseEntity.ok(ApiResponseFactory.ok(response, "Token refreshed successfully"));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse<Void>> logout(@Valid @RequestBody TokenRefreshRequest request) {
+        authService.logout(request);
+        return ResponseEntity.ok(ApiResponseFactory.ok(null, "Logout successful"));
     }
 
     @PostMapping("/forgot-password")
