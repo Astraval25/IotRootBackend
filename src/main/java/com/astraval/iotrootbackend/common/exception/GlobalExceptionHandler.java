@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import com.astraval.iotrootbackend.common.util.ApiResponse;
 import com.astraval.iotrootbackend.common.util.ApiResponseFactory;
@@ -57,6 +58,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
         return ResponseEntity.badRequest()
                 .body(ApiResponseFactory.badRequest("Request violates data constraints"));
+    }
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Object>> handleNoResourceFound(NoResourceFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponseFactory.error("Endpoint not found", HttpStatus.NOT_FOUND.value()));
     }
 
     @ExceptionHandler(Exception.class)

@@ -15,6 +15,11 @@ public class UserService {
   }
 
   @Transactional(readOnly = true)
+  public Optional<User> findUserById(Long userId) {
+    return userRepository.findByUserIdAndIsActiveTrue(userId);
+  }
+
+  @Transactional(readOnly = true)
   public Optional<User> findUserByEmail(String email) {
     return userRepository.findByEmailIgnoreCaseAndIsActiveTrue(email);
   }

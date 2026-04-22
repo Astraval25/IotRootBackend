@@ -167,3 +167,24 @@ SET subject = EXCLUDED.subject,
     is_active = EXCLUDED.is_active,
     modified_by = 0,
     modified_dt = NOW();
+
+-- VerneMQ auth view (queried directly by VerneMQ for MQTT authentication & ACL)
+CREATE OR REPLACE VIEW public.vmq_auth_acl AS
+SELECT
+    COALESCE(d.mountpoint, '')  AS mountpoint,
+    COALESCE(d.client_id, '')   AS client_id,
+    d.username,
+    d.password,
+    COALESCE((
+        SELECT json_agg(json_build_object('pattern', ac.topic))
+        FROM access_controls ac
+        WHERE ac.device_id = d.id
+          AND ac.permission::text = ANY (ARRAY['publish', 'readwrite']::text[])
+    ), '[]'::json) AS publish_acl,
+    COALESCE((
+        SELECT json_agg(json_build_object('pattern', ac.topic))
+        FROM access_controls ac
+        WHERE ac.device_id = d.id
+          AND ac.permission::text = ANY (ARRAY['subscribe', 'readwrite']::text[])
+    ), '[]'::json) AS subscribe_acl
+FROM devices d;

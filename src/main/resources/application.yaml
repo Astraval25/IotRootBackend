@@ -19,6 +19,9 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+          
   mail:
     host: ${MAIL_HOST:}
     port: ${MAIL_PORT:587}
