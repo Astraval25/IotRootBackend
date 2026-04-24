@@ -15,13 +15,9 @@ public class AccessControlResponse {
         AccessControlResponse res = new AccessControlResponse();
         res.setId(ac.getId());
         res.setDeviceId(ac.getDevice().getId());
-        res.setTopic(stripPrefix(ac.getDevice().getUser().getUserId(), ac.getTopic()));
+        res.setTopic(ac.getTopic());
         res.setPermission(ac.getPermission().name());
         return res;
     }
 
-    private static String stripPrefix(Long userId, String storedTopic) {
-        String prefix = "/iot/" + userId + "/";
-        return storedTopic.startsWith(prefix) ? storedTopic.substring(prefix.length()) : storedTopic;
-    }
 }
