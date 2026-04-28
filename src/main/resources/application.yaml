@@ -52,3 +52,11 @@ jwt:
 auth:
   otp:
     expiration-minutes: ${AUTH_OTP_EXPIRATION_MINUTES:10}
+
+vernemq:
+  admin:
+    path: ${VERNEMQ_ADMIN_PATH:/opt/vernemq/bin/vmq-admin}
+    timeout-seconds: ${VERNEMQ_ADMIN_TIMEOUT_SECONDS:5}
+  broker:
+    host: ${VERNEMQ_BROKER_HOST:iotroot.astraval.com}
+    port: ${VERNEMQ_BROKER_PORT:1883}

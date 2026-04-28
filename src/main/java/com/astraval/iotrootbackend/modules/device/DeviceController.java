@@ -3,6 +3,7 @@ package com.astraval.iotrootbackend.modules.device;
 import com.astraval.iotrootbackend.common.util.ApiResponse;
 import com.astraval.iotrootbackend.common.util.ApiResponseFactory;
 import com.astraval.iotrootbackend.common.util.SecurityUtil;
+import com.astraval.iotrootbackend.modules.device.dto.DeviceConnectionStatusResponse;
 import com.astraval.iotrootbackend.modules.device.dto.DeviceRequest;
 import com.astraval.iotrootbackend.modules.device.dto.DeviceResponse;
 import jakarta.validation.Valid;
@@ -33,6 +34,12 @@ public class DeviceController {
     public ResponseEntity<ApiResponse<DeviceResponse>> getOne(@PathVariable Long id) {
         DeviceResponse data = deviceService.getDevice(id, securityUtil.getCurrentSub());
         return ResponseEntity.ok(ApiResponseFactory.ok(data, "Device fetched"));
+    }
+
+    @GetMapping("/connection-status")
+    public ResponseEntity<ApiResponse<List<DeviceConnectionStatusResponse>>> getConnectionStatus() {
+        List<DeviceConnectionStatusResponse> data = deviceService.getDeviceConnectionStatuses(securityUtil.getCurrentSub());
+        return ResponseEntity.ok(ApiResponseFactory.ok(data, "Device connection status fetched"));
     }
 
     @PostMapping
