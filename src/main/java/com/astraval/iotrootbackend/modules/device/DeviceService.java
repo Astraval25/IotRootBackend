@@ -21,13 +21,16 @@ public class DeviceService {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
     private final VernemqSessionService vernemqSessionService;
+    private final DeviceStatusPushService deviceStatusPushService;
 
     public DeviceService(DeviceRepository deviceRepository, UserService userService, PasswordEncoder passwordEncoder,
-                         VernemqSessionService vernemqSessionService) {
+                         VernemqSessionService vernemqSessionService,
+                         DeviceStatusPushService deviceStatusPushService) {
         this.deviceRepository = deviceRepository;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.vernemqSessionService = vernemqSessionService;
+        this.deviceStatusPushService = deviceStatusPushService;
     }
 
     @Transactional(readOnly = true)
@@ -46,7 +49,12 @@ public class DeviceService {
     @Transactional(readOnly = true)
     public List<DeviceConnectionStatusResponse> getDeviceConnectionStatuses(String email) {
         User user = resolveUser(email);
-        List<Device> devices = deviceRepository.findByUserUserId(user.getUserId());
+        return getDeviceConnectionStatusesByUserId(user.getUserId());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DeviceConnectionStatusResponse> getDeviceConnectionStatusesByUserId(Long userId) {
+        List<Device> devices = deviceRepository.findByUserUserId(userId);
         Map<String, Map<String, String>> sessionMap = vernemqSessionService.getSessionDetailsByClientId();
 
         return devices.stream().map(device -> {
@@ -83,7 +91,9 @@ public class DeviceService {
         device.setUser(user);
         device.setClientId(UUID.randomUUID().toString());
         applyRequest(device, req);
-        return DeviceResponse.from(deviceRepository.save(device));
+        DeviceResponse response = DeviceResponse.from(deviceRepository.save(device));
+        pushLatestStatuses(user.getUserId());
+        return response;
     }
 
     @Transactional
@@ -91,13 +101,16 @@ public class DeviceService {
         User user = resolveUser(email);
         Device device = resolveDevice(id, user.getUserId());
         applyRequest(device, req);
-        return DeviceResponse.from(deviceRepository.save(device));
+        DeviceResponse response = DeviceResponse.from(deviceRepository.save(device));
+        pushLatestStatuses(user.getUserId());
+        return response;
     }
 
     @Transactional
     public void deleteDevice(Long id, String email) {
         User user = resolveUser(email);
         deviceRepository.delete(resolveDevice(id, user.getUserId()));
+        pushLatestStatuses(user.getUserId());
     }
 
     public Device resolveDevice(Long id, Long userId) {
@@ -127,5 +140,10 @@ public class DeviceService {
         } catch (NumberFormatException ignored) {
             return null;
         }
+    }
+
+    private void pushLatestStatuses(Long userId) {
+        List<DeviceConnectionStatusResponse> statuses = getDeviceConnectionStatusesByUserId(userId);
+        deviceStatusPushService.pushStatuses(userId, statuses, false);
     }
 }
