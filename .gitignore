@@ -38,4 +38,5 @@ out/
 
 ### Env ###
 .env
-logs/iotroot/iotroot.log
+
+logs/iotroot

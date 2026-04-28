@@ -1,9 +1,5 @@
 package com.astraval.iotrootbackend.modules.user.dto;
 
-import java.time.LocalDateTime;
-import java.util.List;
-
-
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 
