@@ -7,6 +7,7 @@ import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,7 +19,7 @@ public class DeviceStatusPushService {
 
     private final ObjectMapper objectMapper;
     private final Map<Long, Set<WebSocketSession>> sessionsByUserId = new ConcurrentHashMap<>();
-    private final Map<Long, String> lastPayloadByUserId = new ConcurrentHashMap<>();
+    private final Map<Long, Map<String, String>> lastPayloadByUserId = new ConcurrentHashMap<>();
 
     public DeviceStatusPushService(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -45,18 +46,35 @@ public class DeviceStatusPushService {
     }
 
     public void pushStatuses(Long userId, List<?> statuses, boolean skipIfSamePayload) {
+        pushEvent(userId, "device_status_snapshot", statuses, skipIfSamePayload);
+    }
+
+    public void pushUsageOverview(Long userId, Object usageSummary, boolean skipIfSamePayload) {
+        pushEvent(userId, "usage_overview_snapshot", usageSummary, skipIfSamePayload);
+    }
+
+    public void pushDeviceUsage(Long userId, Object usagePayload, boolean skipIfSamePayload) {
+        pushEvent(userId, "device_usage_snapshot", usagePayload, skipIfSamePayload);
+    }
+
+    private void pushEvent(Long userId, String eventName, Object data, boolean skipIfSamePayload) {
         Set<WebSocketSession> sessions = sessionsByUserId.get(userId);
         if (sessions == null || sessions.isEmpty()) {
             return;
         }
 
         try {
-            String payload = objectMapper.writeValueAsString(Map.of(
-                    "event", "device_status_snapshot",
-                    "data", statuses
-            ));
+            Map<String, Object> envelope = new LinkedHashMap<>();
+            envelope.put("event", eventName);
+            envelope.put("data", data);
+            String payload = objectMapper.writeValueAsString(envelope);
 
-            if (skipIfSamePayload && payload.equals(lastPayloadByUserId.get(userId))) {
+            Map<String, String> payloadsByEvent = lastPayloadByUserId.computeIfAbsent(
+                    userId,
+                    ignored -> new ConcurrentHashMap<>()
+            );
+
+            if (skipIfSamePayload && payload.equals(payloadsByEvent.get(eventName))) {
                 return;
             }
 
@@ -68,7 +86,7 @@ public class DeviceStatusPushService {
                 }
                 session.sendMessage(message);
             }
-            lastPayloadByUserId.put(userId, payload);
+            payloadsByEvent.put(eventName, payload);
         } catch (JsonProcessingException ignored) {
             // Ignore malformed serialization edge cases; REST remains fallback.
         } catch (IOException ignored) {

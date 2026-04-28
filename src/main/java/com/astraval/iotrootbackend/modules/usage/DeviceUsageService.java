@@ -3,15 +3,18 @@ package com.astraval.iotrootbackend.modules.usage;
 import com.astraval.iotrootbackend.common.exception.BadRequestException;
 import com.astraval.iotrootbackend.common.exception.ResourceNotFoundException;
 import com.astraval.iotrootbackend.modules.device.Device;
+import com.astraval.iotrootbackend.modules.device.DeviceStatusPushService;
 import com.astraval.iotrootbackend.modules.device.DeviceRepository;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageBucketResponse;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageSummaryResponse;
+import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageStreamPayload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -20,10 +23,13 @@ public class DeviceUsageService {
 
     private final DeviceRepository deviceRepository;
     private final DeviceUsageBucketRepository bucketRepository;
+    private final DeviceStatusPushService pushService;
 
-    public DeviceUsageService(DeviceRepository deviceRepository, DeviceUsageBucketRepository bucketRepository) {
+    public DeviceUsageService(DeviceRepository deviceRepository, DeviceUsageBucketRepository bucketRepository,
+                              DeviceStatusPushService pushService) {
         this.deviceRepository = deviceRepository;
         this.bucketRepository = bucketRepository;
+        this.pushService = pushService;
     }
 
     @Transactional
@@ -66,6 +72,7 @@ public class DeviceUsageService {
         bucket.setPayloadBytes(bucket.getPayloadBytes() + payloadBytes);
         bucket.setEstimatedTotalBytes(bucket.getEstimatedTotalBytes() + estimatedTotal);
         bucketRepository.save(bucket);
+        pushLiveUsage(device);
     }
 
     @Transactional(readOnly = true)
@@ -100,6 +107,13 @@ public class DeviceUsageService {
 
         return bucketRepository.findByDeviceAndRange(device.getId(), fromValue, toValue)
                 .stream().map(DeviceUsageBucketResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public DeviceUsageStreamPayload getStreamPayloadForDevice(Long deviceId, Long userId) {
+        Device device = deviceRepository.findByIdAndUserUserId(deviceId, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Device not found"));
+        return buildStreamPayload(device);
     }
 
     private DeviceUsageSummaryResponse summarize(Long deviceId, String clientId, List<DeviceUsageBucket> buckets,
@@ -180,6 +194,37 @@ public class DeviceUsageService {
         int topicBytes = topic.getBytes(StandardCharsets.UTF_8).length;
         int mqttOverheadEstimate = 14;
         return payloadBytes + topicBytes + mqttOverheadEstimate;
+    }
+
+    private void pushLiveUsage(Device device) {
+        if (device.getUser() == null || device.getUser().getUserId() == null) {
+            return;
+        }
+
+        Long userId = device.getUser().getUserId();
+        DeviceUsageStreamPayload payload = buildStreamPayload(device);
+        pushService.pushDeviceUsage(userId, payload, false);
+        pushService.pushUsageOverview(userId, payload.getAccountSummary(), false);
+    }
+
+    private DeviceUsageStreamPayload buildStreamPayload(Device device) {
+        Instant fromValue = Instant.now().minus(24, ChronoUnit.HOURS);
+        Instant toValue = Instant.now();
+
+        List<DeviceUsageBucket> deviceBuckets = bucketRepository.findByDeviceAndRange(device.getId(), fromValue, toValue);
+        List<DeviceUsageBucketResponse> recentBuckets = deviceBuckets.stream()
+                .sorted(Comparator.comparing(DeviceUsageBucket::getBucketStart).reversed())
+                .limit(6)
+                .map(DeviceUsageBucketResponse::from)
+                .toList();
+
+        DeviceUsageStreamPayload payload = new DeviceUsageStreamPayload();
+        payload.setDeviceId(device.getId());
+        payload.setClientId(device.getClientId());
+        payload.setDeviceSummary(summarize(device.getId(), device.getClientId(), deviceBuckets, fromValue, toValue));
+        payload.setAccountSummary(getUsageSummaryForUser(device.getUser().getUserId(), fromValue, toValue));
+        payload.setRecentBuckets(recentBuckets);
+        return payload;
     }
 
     private void validateRange(Instant from, Instant to) {
