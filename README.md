@@ -26,3 +26,49 @@ sudo systemctl restart iotroot
 sudo journalctl -u iotroot -f
 ```
 ---
+
+## 4. VerneMQ Usage Tracking Webhook
+
+Set these environment variables for backend:
+
+```bash
+VERNEMQ_WEBHOOK_SECRET=change_this_secret
+VERNEMQ_ADMIN_PATH=/opt/vernemq/bin/vmq-admin
+VERNEMQ_BROKER_HOST=iotroot.astraval.com
+VERNEMQ_BROKER_PORT=1883
+```
+
+Configure VerneMQ webhook (example endpoint):
+
+```ini
+plugins.vmq_webhooks = on
+vmq_webhooks.pool_timeout = 1000
+vmq_webhooks.pool_max_connections = 100
+
+vmq_webhooks.vmq.diversity = off
+
+vmq_webhooks.webhook_payload_mode = json
+
+vmq_webhooks.on_publish.hook = on_publish
+vmq_webhooks.on_publish.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage
+vmq_webhooks.on_publish.headers = {"X-Webhook-Secret":"change_this_secret"}
+
+vmq_webhooks.on_deliver.hook = on_deliver
+vmq_webhooks.on_deliver.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage
+vmq_webhooks.on_deliver.headers = {"X-Webhook-Secret":"change_this_secret"}
+```
+
+Restart VerneMQ and backend:
+
+```bash
+sudo systemctl restart vernemq
+sudo systemctl restart iotroot
+```
+
+Usage APIs:
+
+```bash
+GET /api/devices/{id}/usage/summary
+GET /api/devices/{id}/usage/buckets
+GET /api/devices/usage/summary
+```

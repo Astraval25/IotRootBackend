@@ -62,3 +62,5 @@ vernemq:
     port: ${VERNEMQ_BROKER_PORT:1883}
   stream:
     fixed-delay-ms: ${VERNEMQ_STREAM_FIXED_DELAY_MS:8000}
+  webhook:
+    secret: ${VERNEMQ_WEBHOOK_SECRET:}
