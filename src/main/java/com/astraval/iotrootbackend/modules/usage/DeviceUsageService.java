@@ -27,7 +27,7 @@ public class DeviceUsageService {
     }
 
     @Transactional
-    public void ingestWebhookEvent(Map<String, Object> payload) {
+    public void ingestWebhookEvent(Map<String, Object> payload, String hookName) {
         String clientId = firstNonBlank(
                 toText(payload.get("client_id")),
                 toText(payload.get("clientId"))
@@ -42,7 +42,7 @@ public class DeviceUsageService {
         }
 
         String topic = firstNonBlank(toText(payload.get("topic")), "unknown/topic");
-        UsageDirection direction = detectDirection(payload);
+        UsageDirection direction = detectDirection(payload, hookName);
         long payloadBytes = detectPayloadBytes(payload);
         long estimatedTotal = estimateTotalBytes(topic, payloadBytes);
         Instant bucketStart = Instant.now().truncatedTo(ChronoUnit.HOURS);
@@ -137,7 +137,15 @@ public class DeviceUsageService {
         return response;
     }
 
-    private UsageDirection detectDirection(Map<String, Object> payload) {
+    private UsageDirection detectDirection(Map<String, Object> payload, String hookName) {
+        String headerHook = hookName == null ? null : hookName.trim().toLowerCase();
+        if (headerHook != null && headerHook.contains("deliver")) {
+            return UsageDirection.OUTBOUND;
+        }
+        if (headerHook != null && headerHook.contains("publish")) {
+            return UsageDirection.INBOUND;
+        }
+
         String direction = toText(payload.get("direction"));
         String hook = firstNonBlank(toText(payload.get("event")), toText(payload.get("hook")));
         if (direction != null) {

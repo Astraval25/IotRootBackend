@@ -45,18 +45,26 @@ plugins.vmq_webhooks = on
 vmq_webhooks.pool_timeout = 1000
 vmq_webhooks.pool_max_connections = 100
 
-vmq_webhooks.vmq.diversity = off
+vmq_webhooks.usage_publish.hook = on_publish
+vmq_webhooks.usage_publish.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage?secret=change_this_secret
+vmq_webhooks.usage_publish.base64encode = off
 
-vmq_webhooks.webhook_payload_mode = json
+vmq_webhooks.usage_deliver.hook = on_deliver
+vmq_webhooks.usage_deliver.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage?secret=change_this_secret
+vmq_webhooks.usage_deliver.base64encode = off
 
-vmq_webhooks.on_publish.hook = on_publish
-vmq_webhooks.on_publish.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage
-vmq_webhooks.on_publish.headers = {"X-Webhook-Secret":"change_this_secret"}
+vmq_webhooks.usage_publish_m5.hook = on_publish_m5
+vmq_webhooks.usage_publish_m5.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage?secret=change_this_secret
+vmq_webhooks.usage_publish_m5.base64encode = off
 
-vmq_webhooks.on_deliver.hook = on_deliver
-vmq_webhooks.on_deliver.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage
-vmq_webhooks.on_deliver.headers = {"X-Webhook-Secret":"change_this_secret"}
+vmq_webhooks.usage_deliver_m5.hook = on_deliver_m5
+vmq_webhooks.usage_deliver_m5.endpoint = http://127.0.0.1:8090/api/vernemq/webhooks/usage?secret=change_this_secret
+vmq_webhooks.usage_deliver_m5.base64encode = off
 ```
+
+Notes:
+- Some VerneMQ 2.0 builds do not support webhook custom headers, so the shared secret is passed by query parameter.
+- The backend endpoint returns VerneMQ-compatible responses (`{}` for publish hooks and `{"result":"ok"}` for deliver hooks).
 
 Restart VerneMQ and backend:
 

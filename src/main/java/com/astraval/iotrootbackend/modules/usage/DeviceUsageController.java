@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,15 +30,18 @@ public class DeviceUsageController {
     }
 
     @PostMapping("/api/vernemq/webhooks/usage")
-    public ResponseEntity<ApiResponse<Void>> ingestUsage(
+    public ResponseEntity<Map<String, Object>> ingestUsage(
             @RequestBody Map<String, Object> payload,
-            @RequestHeader(value = "X-Webhook-Secret", required = false) String incomingSecret
+            @RequestHeader(value = "X-Webhook-Secret", required = false) String incomingSecret,
+            @RequestHeader(value = "vernemq-hook", required = false) String hookName,
+            @RequestParam(value = "secret", required = false) String querySecret
     ) {
-        if (webhookSecret != null && !webhookSecret.isBlank() && !webhookSecret.equals(incomingSecret)) {
+        String providedSecret = firstNonBlank(incomingSecret, querySecret);
+        if (webhookSecret != null && !webhookSecret.isBlank() && !webhookSecret.equals(providedSecret)) {
             throw new UnauthorizedException("Invalid webhook secret");
         }
-        deviceUsageService.ingestWebhookEvent(payload);
-        return ResponseEntity.ok(ApiResponseFactory.ok(null, "Usage event accepted"));
+        deviceUsageService.ingestWebhookEvent(payload, hookName);
+        return ResponseEntity.ok(buildWebhookAck(hookName));
     }
 
     @GetMapping("/api/devices/{id}/usage/summary")
@@ -70,5 +74,25 @@ public class DeviceUsageController {
         Long userId = Long.parseLong(securityUtil.getCurrentSub());
         DeviceUsageSummaryResponse data = deviceUsageService.getUsageSummaryForUser(userId, from, to);
         return ResponseEntity.ok(ApiResponseFactory.ok(data, "Usage summary fetched"));
+    }
+
+    private String firstNonBlank(String first, String second) {
+        if (first != null && !first.isBlank()) {
+            return first;
+        }
+        if (second != null && !second.isBlank()) {
+            return second;
+        }
+        return null;
+    }
+
+    private Map<String, Object> buildWebhookAck(String hookName) {
+        String normalizedHook = hookName == null ? "" : hookName.trim().toLowerCase();
+        if (normalizedHook.contains("deliver")) {
+            Map<String, Object> ack = new LinkedHashMap<>();
+            ack.put("result", "ok");
+            return ack;
+        }
+        return Map.of();
     }
 }
