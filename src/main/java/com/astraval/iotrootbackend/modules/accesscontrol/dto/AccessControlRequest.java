@@ -9,10 +9,16 @@ import lombok.Data;
 @Data
 public class AccessControlRequest {
 
+    public enum TopicType {
+        STANDARD, STORE
+    }
+
     @NotBlank
     @ValidMqttTopic
     private String topic;
 
     @NotNull
     private Permission permission;
+
+    private TopicType topicType = TopicType.STANDARD;
 }

@@ -28,4 +28,17 @@ public interface DeviceUsageBucketRepository extends JpaRepository<DeviceUsageBu
             order by b.bucketStart asc
             """)
     List<DeviceUsageBucket> findByUserAndRange(Long userId, Instant from, Instant to);
+
+    @Query("""
+            select new com.astraval.iotrootbackend.modules.usage.UsageDirectionTotal(
+                b.direction,
+                sum(b.messageCount),
+                sum(b.payloadBytes),
+                sum(b.estimatedTotalBytes)
+            )
+            from DeviceUsageBucket b
+            where b.device.user.userId = :userId
+            group by b.direction
+            """)
+    List<UsageDirectionTotal> sumAllByUser(Long userId);
 }

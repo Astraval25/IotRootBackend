@@ -5,6 +5,9 @@ import com.astraval.iotrootbackend.common.exception.ResourceNotFoundException;
 import com.astraval.iotrootbackend.modules.device.Device;
 import com.astraval.iotrootbackend.modules.device.DeviceStatusPushService;
 import com.astraval.iotrootbackend.modules.device.DeviceRepository;
+import com.astraval.iotrootbackend.modules.storeddata.StoredMessageService;
+import com.astraval.iotrootbackend.modules.storeddata.StoredMessageRepository;
+import com.astraval.iotrootbackend.modules.usage.dto.AccountUsageOverviewResponse;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageBucketResponse;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageSummaryResponse;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageStreamPayload;
@@ -24,12 +27,17 @@ public class DeviceUsageService {
     private final DeviceRepository deviceRepository;
     private final DeviceUsageBucketRepository bucketRepository;
     private final DeviceStatusPushService pushService;
+    private final StoredMessageService storedMessageService;
+    private final StoredMessageRepository storedMessageRepository;
 
     public DeviceUsageService(DeviceRepository deviceRepository, DeviceUsageBucketRepository bucketRepository,
-                              DeviceStatusPushService pushService) {
+                              DeviceStatusPushService pushService, StoredMessageService storedMessageService,
+                              StoredMessageRepository storedMessageRepository) {
         this.deviceRepository = deviceRepository;
         this.bucketRepository = bucketRepository;
         this.pushService = pushService;
+        this.storedMessageService = storedMessageService;
+        this.storedMessageRepository = storedMessageRepository;
     }
 
     @Transactional
@@ -72,6 +80,7 @@ public class DeviceUsageService {
         bucket.setPayloadBytes(bucket.getPayloadBytes() + payloadBytes);
         bucket.setEstimatedTotalBytes(bucket.getEstimatedTotalBytes() + estimatedTotal);
         bucketRepository.save(bucket);
+        storedMessageService.storePublishedMessageIfApplicable(payload, hookName, device);
         pushLiveUsage(device);
     }
 
@@ -95,6 +104,50 @@ public class DeviceUsageService {
 
         List<DeviceUsageBucket> buckets = bucketRepository.findByUserAndRange(userId, fromValue, toValue);
         return summarize(null, "all", buckets, fromValue, toValue);
+    }
+
+    @Transactional(readOnly = true)
+    public AccountUsageOverviewResponse getAccountUsageOverview(Long userId, Instant from, Instant to) {
+        Instant toValue = to != null ? to : Instant.now();
+        boolean allTime = from == null && to == null;
+        Instant fromValue = allTime ? null : from != null ? from : toValue.minus(24, ChronoUnit.HOURS);
+        if (!allTime) {
+            validateRange(fromValue, toValue);
+        }
+
+        DeviceUsageSummaryResponse usage;
+        long storedMessageCount;
+        Long storedPayloadBytes;
+        if (allTime) {
+            usage = summarizeTotals(bucketRepository.sumAllByUser(userId), toValue);
+            storedMessageCount = storedMessageRepository.countByUserUserId(userId);
+            storedPayloadBytes = storedMessageRepository.sumPayloadBytesByUser(userId);
+        } else {
+            usage = summarize(
+                    null,
+                    "all",
+                    bucketRepository.findByUserAndRange(userId, fromValue, toValue),
+                    fromValue,
+                    toValue);
+            storedMessageCount = storedMessageRepository
+                    .countByUserUserIdAndReceivedAtBetween(userId, fromValue, toValue);
+            storedPayloadBytes = storedMessageRepository.sumPayloadBytesByUserAndRange(userId, fromValue, toValue);
+        }
+
+        AccountUsageOverviewResponse response = new AccountUsageOverviewResponse();
+        response.setFrom(fromValue);
+        response.setTo(toValue);
+        response.setDeviceCount(deviceRepository.countByUserUserId(userId));
+        response.setInboundMessages(usage.getInboundMessages());
+        response.setOutboundMessages(usage.getOutboundMessages());
+        response.setTotalTransactions(usage.getInboundMessages() + usage.getOutboundMessages());
+        response.setInboundPayloadBytes(usage.getInboundPayloadBytes());
+        response.setOutboundPayloadBytes(usage.getOutboundPayloadBytes());
+        response.setInboundEstimatedTotalBytes(usage.getInboundEstimatedTotalBytes());
+        response.setOutboundEstimatedTotalBytes(usage.getOutboundEstimatedTotalBytes());
+        response.setStoredMessageCount(storedMessageCount);
+        response.setStoredPayloadBytes(storedPayloadBytes == null ? 0L : storedPayloadBytes);
+        return response;
     }
 
     @Transactional(readOnly = true)
@@ -149,6 +202,31 @@ public class DeviceUsageService {
         response.setFrom(from);
         response.setTo(to);
         return response;
+    }
+
+    private DeviceUsageSummaryResponse summarizeTotals(List<UsageDirectionTotal> totals, Instant to) {
+        DeviceUsageSummaryResponse response = new DeviceUsageSummaryResponse();
+        response.setClientId("all");
+        response.setTo(to);
+        for (UsageDirectionTotal total : totals) {
+            long messages = valueOrZero(total.messageCount());
+            long payloadBytes = valueOrZero(total.payloadBytes());
+            long estimatedBytes = valueOrZero(total.estimatedTotalBytes());
+            if (total.direction() == UsageDirection.INBOUND) {
+                response.setInboundMessages(messages);
+                response.setInboundPayloadBytes(payloadBytes);
+                response.setInboundEstimatedTotalBytes(estimatedBytes);
+            } else {
+                response.setOutboundMessages(messages);
+                response.setOutboundPayloadBytes(payloadBytes);
+                response.setOutboundEstimatedTotalBytes(estimatedBytes);
+            }
+        }
+        return response;
+    }
+
+    private long valueOrZero(Long value) {
+        return value == null ? 0L : value;
     }
 
     private UsageDirection detectDirection(Map<String, Object> payload, String hookName) {

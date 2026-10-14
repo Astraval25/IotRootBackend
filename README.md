@@ -62,6 +62,27 @@ vmq_webhooks.usage_deliver_m5.endpoint = http://127.0.0.1:8090/api/vernemq/webho
 vmq_webhooks.usage_deliver_m5.base64encode = off
 ```
 
+## Stored JSON data
+
+Create a device publish rule under `/iot/store/{userId}/#`. Every valid JSON payload published to a concrete matching topic is persisted once from the `on_publish` webhook. Delivery hooks are used for usage accounting only and do not create stored-data rows.
+
+On Windows Command Prompt, escape JSON double quotes because single quotes are transmitted as payload characters:
+
+```bat
+mosquitto_pub -h iotroot.astraval.com -p 1883 -u USERNAME -P PASSWORD -i CLIENT_ID -t /iot/store/USER_ID/status -m "{\"value\":1}" -q 1
+```
+
+PowerShell, Bash, and similar shells can use `-m '{"value":1}'`.
+
+Manage read-only integration keys from the dashboard or with the authenticated `/api/api-keys` endpoints. The complete key is returned only when it is created. Use it with:
+
+```bash
+curl -H "X-API-Key: iotr_live_REPLACE_ME" \
+  "https://iotroot.astraval.com/api/v1/store/messages"
+```
+
+The data endpoint returns the most recent hour by default. It accepts `from`, `to`, `deviceId`, `topic`, `topicPrefix`, `page`, and `size` query parameters. Date values use ISO-8601 instants and a query range may not exceed 31 days.
+
 Notes:
 - Some VerneMQ 2.0 builds do not support webhook custom headers, so the shared secret is passed by query parameter.
 - The backend endpoint returns VerneMQ-compatible responses (`{}` for publish hooks and `{"result":"ok"}` for deliver hooks).
@@ -79,4 +100,5 @@ Usage APIs:
 GET /api/devices/{id}/usage/summary
 GET /api/devices/{id}/usage/buckets
 GET /api/devices/usage/summary
+GET /api/usage/overview?from=...&to=...
 ```

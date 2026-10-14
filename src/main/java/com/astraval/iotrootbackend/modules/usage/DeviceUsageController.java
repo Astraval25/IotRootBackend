@@ -6,6 +6,7 @@ import com.astraval.iotrootbackend.common.util.SecurityUtil;
 import com.astraval.iotrootbackend.common.exception.UnauthorizedException;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageBucketResponse;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageSummaryResponse;
+import com.astraval.iotrootbackend.modules.usage.dto.AccountUsageOverviewResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -74,6 +75,16 @@ public class DeviceUsageController {
         Long userId = Long.parseLong(securityUtil.getCurrentSub());
         DeviceUsageSummaryResponse data = deviceUsageService.getUsageSummaryForUser(userId, from, to);
         return ResponseEntity.ok(ApiResponseFactory.ok(data, "Usage summary fetched"));
+    }
+
+    @GetMapping("/api/usage/overview")
+    public ResponseEntity<ApiResponse<AccountUsageOverviewResponse>> getAccountUsageOverview(
+            @RequestParam(required = false) Instant from,
+            @RequestParam(required = false) Instant to
+    ) {
+        Long userId = Long.parseLong(securityUtil.getCurrentSub());
+        AccountUsageOverviewResponse data = deviceUsageService.getAccountUsageOverview(userId, from, to);
+        return ResponseEntity.ok(ApiResponseFactory.ok(data, "Account usage overview fetched"));
     }
 
     private String firstNonBlank(String first, String second) {

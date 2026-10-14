@@ -6,6 +6,7 @@ import com.astraval.iotrootbackend.modules.device.dto.DeviceConnectionStatusResp
 import com.astraval.iotrootbackend.modules.device.dto.DeviceResponse;
 import com.astraval.iotrootbackend.modules.user.User;
 import com.astraval.iotrootbackend.modules.user.UserService;
+import com.astraval.iotrootbackend.modules.storeddata.StoredMessageService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,15 +23,18 @@ public class DeviceService {
     private final PasswordEncoder passwordEncoder;
     private final VernemqSessionService vernemqSessionService;
     private final DeviceStatusPushService deviceStatusPushService;
+    private final StoredMessageService storedMessageService;
 
     public DeviceService(DeviceRepository deviceRepository, UserService userService, PasswordEncoder passwordEncoder,
                          VernemqSessionService vernemqSessionService,
-                         DeviceStatusPushService deviceStatusPushService) {
+                         DeviceStatusPushService deviceStatusPushService,
+                         StoredMessageService storedMessageService) {
         this.deviceRepository = deviceRepository;
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
         this.vernemqSessionService = vernemqSessionService;
         this.deviceStatusPushService = deviceStatusPushService;
+        this.storedMessageService = storedMessageService;
     }
 
     @Transactional(readOnly = true)
@@ -109,7 +113,9 @@ public class DeviceService {
     @Transactional
     public void deleteDevice(Long id, String email) {
         User user = resolveUser(email);
-        deviceRepository.delete(resolveDevice(id, user.getUserId()));
+        Device device = resolveDevice(id, user.getUserId());
+        storedMessageService.deleteForDevice(device.getId());
+        deviceRepository.delete(device);
         pushLatestStatuses(user.getUserId());
     }
 

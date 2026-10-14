@@ -35,7 +35,7 @@ public class AccessControlService {
         Device device = deviceService.resolveDevice(deviceId, user.getUserId());
         AccessControl ac = new AccessControl();
         ac.setDevice(device);
-        ac.setTopic(buildTopic(user.getUserId(), req.getTopic()));
+        ac.setTopic(buildTopic(user.getUserId(), req));
         ac.setPermission(req.getPermission());
         return AccessControlResponse.from(accessControlRepository.save(ac));
     }
@@ -44,7 +44,7 @@ public class AccessControlService {
     public AccessControlResponse updateRule(Long deviceId, Long ruleId, AccessControlRequest req, String email) {
         Long userId = resolveUserId(email);
         AccessControl ac = resolveRule(ruleId, deviceId, userId);
-        ac.setTopic(buildTopic(userId, req.getTopic()));
+        ac.setTopic(buildTopic(userId, req));
         ac.setPermission(req.getPermission());
         return AccessControlResponse.from(accessControlRepository.save(ac));
     }
@@ -59,7 +59,11 @@ public class AccessControlService {
         return deviceService.resolveUser(email).getUserId();
     }
 
-    private String buildTopic(Long userId, String userTopic) {
+    private String buildTopic(Long userId, AccessControlRequest request) {
+        String userTopic = request.getTopic().trim().replaceFirst("^/+", "");
+        if (request.getTopicType() == AccessControlRequest.TopicType.STORE) {
+            return "/iot/store/" + userId + "/" + userTopic;
+        }
         return "/iot/" + userId + "/" + userTopic;
     }
 

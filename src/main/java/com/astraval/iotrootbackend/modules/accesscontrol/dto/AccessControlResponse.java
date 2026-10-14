@@ -10,6 +10,7 @@ public class AccessControlResponse {
     private Long deviceId;
     private String topic;
     private String permission;
+    private String topicType;
 
     public static AccessControlResponse from(AccessControl ac) {
         AccessControlResponse res = new AccessControlResponse();
@@ -17,6 +18,8 @@ public class AccessControlResponse {
         res.setDeviceId(ac.getDevice().getId());
         res.setTopic(ac.getTopic());
         res.setPermission(ac.getPermission().name());
+        String storePrefix = "/iot/store/" + ac.getDevice().getUser().getUserId() + "/";
+        res.setTopicType(ac.getTopic().startsWith(storePrefix) ? "STORE" : "STANDARD");
         return res;
     }
 
