@@ -10,4 +10,8 @@ public interface AccessControlRepository extends JpaRepository<AccessControl, Lo
     List<AccessControl> findByDeviceIdAndDeviceUserUserId(Long deviceId, Long userId);
 
     Optional<AccessControl> findByIdAndDeviceIdAndDeviceUserUserId(Long id, Long deviceId, Long userId);
+
+    boolean existsByDeviceIdAndTopic(Long deviceId, String topic);
+
+    Optional<AccessControl> findFirstByDeviceUserUserIdAndTopicOrderByIdAsc(Long userId, String topic);
 }

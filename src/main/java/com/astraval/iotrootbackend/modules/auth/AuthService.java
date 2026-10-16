@@ -49,6 +49,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailTemplateService emailTemplateService;
+    private final StarterWorkspaceProvisioner starterWorkspaceProvisioner;
 
     @Value("${auth.otp.expiration-minutes:10}")
     private int otpExpirationMinutes;
@@ -59,13 +60,15 @@ public class AuthService {
             RevokedRefreshTokenRepository revokedRefreshTokenRepository,
             PasswordEncoder passwordEncoder,
             JwtUtil jwtUtil,
-            EmailTemplateService emailTemplateService) {
+            EmailTemplateService emailTemplateService,
+            StarterWorkspaceProvisioner starterWorkspaceProvisioner) {
         this.userRepository = userRepository;
         this.userOtpRepository = userOtpRepository;
         this.revokedRefreshTokenRepository = revokedRefreshTokenRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
         this.emailTemplateService = emailTemplateService;
+        this.starterWorkspaceProvisioner = starterWorkspaceProvisioner;
     }
 
     @Transactional
@@ -85,6 +88,8 @@ public class AuthService {
         user.setVerified(false);
         user.setIsActive(true);
         user = userRepository.save(user);
+
+        starterWorkspaceProvisioner.provision(user, request.password());
 
         OtpDispatchResult otpDispatch = issueOtpForUser(
                 user,
@@ -240,6 +245,7 @@ public class AuthService {
 
         user.setPassword(passwordEncoder.encode(request.newPassword()));
         userRepository.save(user);
+        starterWorkspaceProvisioner.rotatePasswordIfPresent(user, request.newPassword());
     }
 
     private OtpDispatchResult issueOtpForUser(User user, OtpPurpose purpose, String templateName) {
