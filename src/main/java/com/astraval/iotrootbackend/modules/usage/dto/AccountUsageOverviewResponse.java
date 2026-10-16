@@ -18,4 +18,6 @@ public class AccountUsageOverviewResponse {
     private long outboundEstimatedTotalBytes;
     private long storedMessageCount;
     private long storedPayloadBytes;
+    private long successfulHttpsRequests;
+    private long failedHttpsRequests;
 }

@@ -38,7 +38,7 @@ public class ApiKeyController {
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> revoke(@PathVariable Long id) {
         service.revoke(userId(), id);
-        return ResponseEntity.ok(ApiResponseFactory.deleted("API key revoked"));
+        return ResponseEntity.ok(ApiResponseFactory.deleted("API key deleted"));
     }
 
     private Long userId() {

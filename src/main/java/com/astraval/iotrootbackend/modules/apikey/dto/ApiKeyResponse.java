@@ -13,6 +13,8 @@ public class ApiKeyResponse {
     private Instant createdAt;
     private Instant lastUsedAt;
     private Instant revokedAt;
+    private long successfulRequests;
+    private long failedRequests;
 
     public static ApiKeyResponse from(ApiKey key) {
         ApiKeyResponse response = new ApiKeyResponse();
@@ -22,6 +24,8 @@ public class ApiKeyResponse {
         response.setCreatedAt(key.getCreatedAt());
         response.setLastUsedAt(key.getLastUsedAt());
         response.setRevokedAt(key.getRevokedAt());
+        response.setSuccessfulRequests(key.getSuccessfulRequests());
+        response.setFailedRequests(key.getFailedRequests());
         return response;
     }
 }

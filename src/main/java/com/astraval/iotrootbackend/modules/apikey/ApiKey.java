@@ -40,4 +40,10 @@ public class ApiKey {
 
     @Column(name = "revoked_at")
     private Instant revokedAt;
+
+    @Column(name = "successful_requests", nullable = false)
+    private long successfulRequests;
+
+    @Column(name = "failed_requests", nullable = false)
+    private long failedRequests;
 }

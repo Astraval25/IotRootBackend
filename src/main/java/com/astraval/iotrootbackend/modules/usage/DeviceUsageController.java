@@ -7,6 +7,7 @@ import com.astraval.iotrootbackend.common.exception.UnauthorizedException;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageBucketResponse;
 import com.astraval.iotrootbackend.modules.usage.dto.DeviceUsageSummaryResponse;
 import com.astraval.iotrootbackend.modules.usage.dto.AccountUsageOverviewResponse;
+import com.astraval.iotrootbackend.modules.apikey.ApiKeyRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,12 +23,14 @@ public class DeviceUsageController {
     private final DeviceUsageService deviceUsageService;
     private final SecurityUtil securityUtil;
     private final String webhookSecret;
+    private final ApiKeyRepository apiKeyRepository;
 
-    public DeviceUsageController(DeviceUsageService deviceUsageService, SecurityUtil securityUtil,
+    public DeviceUsageController(DeviceUsageService deviceUsageService, SecurityUtil securityUtil, ApiKeyRepository apiKeyRepository,
                                  @Value("${vernemq.webhook.secret:}") String webhookSecret) {
         this.deviceUsageService = deviceUsageService;
         this.securityUtil = securityUtil;
         this.webhookSecret = webhookSecret;
+        this.apiKeyRepository = apiKeyRepository;
     }
 
     @PostMapping("/api/vernemq/webhooks/usage")
@@ -84,6 +87,8 @@ public class DeviceUsageController {
     ) {
         Long userId = Long.parseLong(securityUtil.getCurrentSub());
         AccountUsageOverviewResponse data = deviceUsageService.getAccountUsageOverview(userId, from, to);
+        data.setSuccessfulHttpsRequests(apiKeyRepository.sumSuccessfulRequestsByUserId(userId));
+        data.setFailedHttpsRequests(apiKeyRepository.sumFailedRequestsByUserId(userId));
         return ResponseEntity.ok(ApiResponseFactory.ok(data, "Account usage overview fetched"));
     }
 

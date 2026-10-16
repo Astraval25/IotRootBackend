@@ -34,7 +34,7 @@ public class ApiKeyService {
 
     @Transactional(readOnly = true)
     public List<ApiKeyResponse> list(Long userId) {
-        return repository.findByUserUserIdOrderByCreatedAtDesc(userId)
+        return repository.findByUserUserIdAndRevokedAtIsNullOrderByCreatedAtDesc(userId)
                 .stream().map(ApiKeyResponse::from).toList();
     }
 
@@ -70,6 +70,11 @@ public class ApiKeyService {
 
     @Transactional
     public Long authenticate(String rawKey) {
+        return authenticateKey(rawKey).getUser().getUserId();
+    }
+
+    @Transactional
+    public ApiKey authenticateKey(String rawKey) {
         if (rawKey == null || rawKey.isBlank() || !rawKey.startsWith(KEY_PREFIX)) {
             throw new UnauthorizedException("Invalid or missing API key");
         }
@@ -81,7 +86,16 @@ public class ApiKeyService {
         }
         key.setLastUsedAt(Instant.now());
         repository.save(key);
-        return user.getUserId();
+        return key;
+    }
+
+    @Transactional
+    public void recordRequest(Long keyId, boolean successful) {
+        repository.findById(keyId).ifPresent(key -> {
+            if (successful) key.setSuccessfulRequests(key.getSuccessfulRequests() + 1);
+            else key.setFailedRequests(key.getFailedRequests() + 1);
+            repository.save(key);
+        });
     }
 
     private String generateKey() {

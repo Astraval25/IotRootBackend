@@ -3,6 +3,7 @@ package com.astraval.iotrootbackend.modules.storeddata;
 import com.astraval.iotrootbackend.common.util.ApiResponse;
 import com.astraval.iotrootbackend.common.util.ApiResponseFactory;
 import com.astraval.iotrootbackend.modules.apikey.ApiKeyService;
+import com.astraval.iotrootbackend.modules.apikey.ApiKey;
 import com.astraval.iotrootbackend.modules.storeddata.dto.StoredMessagePageResponse;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -36,9 +37,15 @@ public class StoredMessageApiController {
             @RequestParam(required = false) String topicPrefix,
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "50") @Min(1) @Max(200) int size) {
-        Long userId = apiKeyService.authenticate(apiKey);
-        return ResponseEntity.ok(ApiResponseFactory.ok(
-                storedMessageService.query(userId, from, to, deviceId, topic, topicPrefix, page, size),
-                "Stored messages fetched"));
+        ApiKey authenticatedKey = apiKeyService.authenticateKey(apiKey);
+        try {
+            StoredMessagePageResponse data = storedMessageService.query(authenticatedKey.getUser().getUserId(),
+                    from, to, deviceId, topic, topicPrefix, page, size);
+            apiKeyService.recordRequest(authenticatedKey.getId(), true);
+            return ResponseEntity.ok(ApiResponseFactory.ok(data, "Stored messages fetched"));
+        } catch (RuntimeException exception) {
+            apiKeyService.recordRequest(authenticatedKey.getId(), false);
+            throw exception;
+        }
     }
 }
